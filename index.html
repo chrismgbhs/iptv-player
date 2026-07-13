@@ -121,7 +121,7 @@
 
   <div id="urlSection">
     <p>Enter the link to your M3U playlist file (for example a raw.githubusercontent.com link ending in .m3u).</p>
-    <input type="text" id="playlistUrl" placeholder="https://example.com/channels.m3u">
+    <input type="text" id="playlistUrl" placeholder="https://example.com/channels.m3u" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false">
     <div id="urlError"></div>
     <br>
     <button id="loadUrlBtn">Load Channels from Link</button>
@@ -442,14 +442,14 @@
         if (xhr.status >= 200 && xhr.status < 300) {
           onSuccess(xhr.responseText);
         } else {
-          onError("Could not load that link (status " + xhr.status + "). Check the URL, or paste the playlist text instead.");
+          onError("Could not load that link (status " + xhr.status + "). Requested: " + url + " — double-check every character matches exactly (links are case-sensitive), or paste the playlist text instead.");
         }
       }
     };
     xhr.onerror = function () {
       if (done) { return; }
       done = true;
-      onError("Could not load that link. It may be blocking cross-site requests, or the URL is wrong. Try pasting the playlist text instead.");
+      onError("Could not load that link. Requested: " + url + " — it may be blocking cross-site requests, or the URL is wrong. Try pasting the playlist text instead.");
     };
     try {
       xhr.send();
@@ -459,12 +459,15 @@
   }
 
   loadUrlBtn.onclick = function () {
-    var url = trim(playlistUrl.value || "");
+    // strip ALL whitespace (not just ends) - TV remote/on-screen keyboards
+    // sometimes insert stray spaces mid-URL, which silently breaks the link.
+    var url = trim(playlistUrl.value || "").replace(/\s+/g, "");
+    playlistUrl.value = url;
     if (url === "") {
       urlError.innerHTML = "Please enter a link first.";
       return;
     }
-    urlError.innerHTML = "Loading...";
+    urlError.innerHTML = "Loading: " + url;
     fetchPlaylistFromUrl(url, function (text) {
       var parsed = parsePlaylist(text);
       if (parsed.length === 0) {
