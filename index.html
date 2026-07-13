@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>My IPTV Player</title>
+<style type="text/css">
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #000; color: #eee;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 20px;
+  }
+  #app { padding: 3%; }
+  #topbar { width: 100%; margin-bottom: 12px; }
+  #topbar h1 {
+    font-size: 26px; margin: 0; display: inline-block;
+    color: #fff;
+  }
+  #editBtn, #cancelBtn, #saveBtn, #playHereBtn {
+    float: right; font-size: 20px; padding: 10px 18px;
+    background: #333; color: #fff; border: 2px solid #666;
+    cursor: pointer; margin-left: 10px;
+  }
+  #editBtn:focus, #cancelBtn:focus, #saveBtn:focus, #playHereBtn:focus,
+  .chanBtn:focus {
+    outline: 4px solid #ffcc00;
+    background: #555;
+  }
+  #playerWrap { width: 100%; background: #000; margin-bottom: 16px; }
+  video {
+    width: 100%;
+    max-height: 62vh;
+    background: #000;
+    display: block;
+  }
+  #status { font-size: 18px; color: #aaa; padding: 6px 0; min-height: 24px; }
+  #nowPlaying { font-size: 22px; color: #fff; font-weight: bold; padding: 4px 0; }
+  #channelLabel { font-size: 20px; color: #ccc; margin: 10px 0 6px 0; }
+  #channelList {
+    width: 100%; white-space: nowrap; overflow-x: auto;
+    padding: 6px 0;
+    border-top: 1px solid #333; border-bottom: 1px solid #333;
+  }
+  .chanBtn {
+    display: inline-block; vertical-align: top;
+    background: #222; color: #fff; border: 2px solid #444;
+    padding: 14px 18px; margin-right: 10px; margin-bottom: 8px;
+    font-size: 19px; cursor: pointer; white-space: nowrap;
+  }
+  .chanBtn.active { background: #0a5; border-color: #0f8; color: #fff; }
+  #overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.92); z-index: 100;
+    padding: 4%; display: none; overflow-y: auto;
+  }
+  #overlay h2 { color: #fff; font-size: 24px; }
+  #overlay p { color: #bbb; font-size: 16px; line-height: 1.5; }
+  #playlistText {
+    width: 100%; height: 40%; min-height: 220px;
+    font-size: 16px; padding: 10px; background: #111; color: #eee;
+    border: 2px solid #555;
+  }
+  #modeTabs { margin-bottom: 14px; }
+  .modeTabBtn {
+    font-size: 19px; padding: 10px 20px; margin-right: 10px;
+    background: #222; color: #ccc; border: 2px solid #555; cursor: pointer;
+  }
+  .modeTabBtn.active { background: #0a5; border-color: #0f8; color: #fff; }
+  .modeTabBtn:focus { outline: 4px solid #ffcc00; }
+  #urlSection, #textSection { display: none; }
+  #urlSection.shown, #textSection.shown { display: block; }
+  #playlistUrl {
+    width: 100%; font-size: 18px; padding: 12px; background: #111; color: #eee;
+    border: 2px solid #555;
+  }
+  #playlistUrl:focus { outline: 4px solid #ffcc00; }
+  #urlError { color: #f66; font-size: 16px; min-height: 22px; margin-top: 8px; }
+  #resumeOverlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.85); z-index: 90;
+    display: none; text-align: center;
+  }
+  #resumeOverlay .inner { margin-top: 30%; }
+  #resumeOverlay button {
+    font-size: 26px; padding: 20px 40px; background: #0a5; color: #fff;
+    border: 3px solid #0f8; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <button id="editBtn">Edit Playlist</button>
+    <h1>My IPTV Player</h1>
+  </div>
+
+  <div id="playerWrap">
+    <video id="player" controls playsinline></video>
+    <div id="nowPlaying">No channel selected</div>
+    <div id="status"></div>
+  </div>
+
+  <div id="channelLabel">Channels</div>
+  <div id="channelList"></div>
+</div>
+
+<div id="resumeOverlay">
+  <div class="inner">
+    <button id="resumeBtn">Press OK / Click to Start Playback</button>
+  </div>
+</div>
+
+<div id="overlay">
+  <h2>Load your playlist</h2>
+
+  <div id="modeTabs">
+    <button type="button" class="modeTabBtn" id="tabUrlBtn">Load from Link</button>
+    <button type="button" class="modeTabBtn" id="tabTextBtn">Paste List</button>
+  </div>
+
+  <div id="urlSection">
+    <p>Enter the link to your M3U playlist file (for example a raw.githubusercontent.com link ending in .m3u).</p>
+    <input type="text" id="playlistUrl" placeholder="https://example.com/channels.m3u">
+    <div id="urlError"></div>
+    <br>
+    <button id="loadUrlBtn">Load Channels from Link</button>
+    <button id="cancelBtn2">Cancel</button>
+  </div>
+
+  <div id="textSection">
+    <p>
+      Paste a list of channels below. Either format works:<br>
+      Standard M3U (lines starting with #EXTINF:-1,Channel Name followed by the stream link), or<br>
+      Simple pairs: one line with the channel name, then the next line with its link. Repeat for each channel.
+    </p>
+    <textarea id="playlistText" placeholder="TV5&#10;https://example.com/tv5/index.m3u8&#10;A2Z&#10;https://example.com/a2z/index.m3u8"></textarea>
+    <br><br>
+    <button id="saveBtn">Save &amp; Load Channels</button>
+    <button id="cancelBtn">Cancel</button>
+  </div>
+</div>
+
+<script type="text/javascript">
+(function () {
+  "use strict";
+
+  var STORAGE_KEY = "iptv_playlist_raw";
+  var STORAGE_URL_KEY = "iptv_playlist_url";
+  var LAST_CHANNEL_KEY = "iptv_last_channel";
+
+  var video = document.getElementById("player");
+  var statusEl = document.getElementById("status");
+  var nowPlayingEl = document.getElementById("nowPlaying");
+  var channelListEl = document.getElementById("channelList");
+  var overlay = document.getElementById("overlay");
+  var playlistText = document.getElementById("playlistText");
+  var playlistUrl = document.getElementById("playlistUrl");
+  var urlError = document.getElementById("urlError");
+  var editBtn = document.getElementById("editBtn");
+  var saveBtn = document.getElementById("saveBtn");
+  var cancelBtn = document.getElementById("cancelBtn");
+  var cancelBtn2 = document.getElementById("cancelBtn2");
+  var loadUrlBtn = document.getElementById("loadUrlBtn");
+  var tabUrlBtn = document.getElementById("tabUrlBtn");
+  var tabTextBtn = document.getElementById("tabTextBtn");
+  var urlSection = document.getElementById("urlSection");
+  var textSection = document.getElementById("textSection");
+  var resumeOverlay = document.getElementById("resumeOverlay");
+  var resumeBtn = document.getElementById("resumeBtn");
+
+  var channels = [];
+  var currentIndex = -1;
+  var hlsInstance = null;
+
+  function trim(s) {
+    return s.replace(/^\s+|\s+$/g, "");
+  }
+
+  function getStorage(key) {
+    try {
+      return window.localStorage.getItem(key);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function setStorage(key, val) {
+    try {
+      window.localStorage.setItem(key, val);
+    } catch (e) {}
+  }
+
+  function setStatus(msg) {
+    statusEl.innerHTML = msg;
+  }
+
+  function parsePlaylist(text) {
+    var lines = text.split(/\r?\n/);
+    var list = [];
+    var pendingName = null;
+    var i, line, idx;
+    for (i = 0; i < lines.length; i++) {
+      line = trim(lines[i] || "");
+      if (line === "") { continue; }
+      if (line.indexOf("#EXTM3U") === 0) { continue; }
+      if (line.indexOf("#EXTINF") === 0) {
+        idx = line.lastIndexOf(",");
+        pendingName = idx >= 0 ? trim(line.substring(idx + 1)) : null;
+        continue;
+      }
+      if (line.charAt(0) === "#") { continue; }
+      if (/^https?:\/\//i.test(line)) {
+        var name = pendingName ? pendingName : ("Channel " + (list.length + 1));
+        list.push({ name: name, url: line });
+        pendingName = null;
+      } else {
+        pendingName = line;
+      }
+    }
+    return list;
+  }
+
+  function renderChannelList() {
+    channelListEl.innerHTML = "";
+    var i;
+    for (i = 0; i < channels.length; i++) {
+      (function (index) {
+        var btn = document.createElement("button");
+        btn.className = "chanBtn";
+        btn.type = "button";
+        btn.innerHTML = channels[index].name;
+        btn.onclick = function () {
+          playChannel(index);
+        };
+        btn.id = "chanBtn_" + index;
+        channelListEl.appendChild(btn);
+      })(i);
+    }
+    highlightActive();
+  }
+
+  function highlightActive() {
+    var i, btn;
+    for (i = 0; i < channels.length; i++) {
+      btn = document.getElementById("chanBtn_" + i);
+      if (!btn) { continue; }
+      btn.className = (i === currentIndex) ? "chanBtn active" : "chanBtn";
+    }
+  }
+
+  function destroyHls() {
+    if (hlsInstance) {
+      try { hlsInstance.destroy(); } catch (e) {}
+      hlsInstance = null;
+    }
+  }
+
+  function playUrl(url) {
+    destroyHls();
+    video.removeAttribute("src");
+    try { video.load(); } catch (e) {}
+
+    // Primary: native HLS playback (works on Safari / old Samsung WebKit TVs)
+    video.src = url;
+    try { video.load(); } catch (e) {}
+    attemptPlay();
+  }
+
+  function attemptPlay() {
+    var p;
+    try {
+      p = video.play();
+      if (p && typeof p.then === "function") {
+        p.then(function () {
+          setStatus("Playing.");
+        }, function () {
+          showResumeOverlay();
+        });
+      } else {
+        setStatus("Playing.");
+      }
+    } catch (e) {
+      showResumeOverlay();
+    }
+  }
+
+  function showResumeOverlay() {
+    resumeOverlay.style.display = "block";
+    setStatus("Playback needs a tap/click to start.");
+  }
+
+  function hideResumeOverlay() {
+    resumeOverlay.style.display = "none";
+  }
+
+  function tryHlsJsFallback(url) {
+    if (!window.MediaSource) {
+      setStatus("Playback error. This link may not work on this device.");
+      return;
+    }
+    if (window.Hls && window.Hls.isSupported()) {
+      startHlsJs(url);
+      return;
+    }
+    setStatus("Loading fallback player...");
+    var s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js";
+    s.onload = function () {
+      if (window.Hls && window.Hls.isSupported()) {
+        startHlsJs(url);
+      } else {
+        setStatus("Playback error. This link may not work on this device.");
+      }
+    };
+    s.onerror = function () {
+      setStatus("Playback error. This link may not work on this device.");
+    };
+    document.head.appendChild(s);
+  }
+
+  function startHlsJs(url) {
+    destroyHls();
+    hlsInstance = new window.Hls();
+    hlsInstance.loadSource(url);
+    hlsInstance.attachMedia(video);
+    hlsInstance.on(window.Hls.Events.MANIFEST_PARSED, function () {
+      attemptPlay();
+    });
+    hlsInstance.on(window.Hls.Events.ERROR, function (evt, data) {
+      if (data && data.fatal) {
+        setStatus("Playback error. This link may not work on this device.");
+      }
+    });
+  }
+
+  function playChannel(index) {
+    if (index < 0 || index >= channels.length) { return; }
+    currentIndex = index;
+    highlightActive();
+    nowPlayingEl.innerHTML = "Now Playing: " + channels[index].name;
+    setStatus("Loading...");
+    setStorage(LAST_CHANNEL_KEY, String(index));
+    playUrl(channels[index].url);
+  }
+
+  video.addEventListener("error", function () {
+    if (currentIndex >= 0) {
+      setStatus("Native playback failed, trying fallback...");
+      tryHlsJsFallback(channels[currentIndex].url);
+    }
+  });
+
+  video.addEventListener("playing", function () {
+    hideResumeOverlay();
+    setStatus("Playing.");
+  });
+
+  resumeBtn.onclick = function () {
+    hideResumeOverlay();
+    attemptPlay();
+  };
+
+  function showTab(mode) {
+    if (mode === "url") {
+      urlSection.className = "shown";
+      textSection.className = "";
+      tabUrlBtn.className = "modeTabBtn active";
+      tabTextBtn.className = "modeTabBtn";
+    } else {
+      urlSection.className = "";
+      textSection.className = "shown";
+      tabUrlBtn.className = "modeTabBtn";
+      tabTextBtn.className = "modeTabBtn active";
+    }
+  }
+
+  tabUrlBtn.onclick = function () { showTab("url"); };
+  tabTextBtn.onclick = function () { showTab("text"); };
+
+  function openEditor() {
+    playlistText.value = getStorage(STORAGE_KEY) || "";
+    playlistUrl.value = getStorage(STORAGE_URL_KEY) || "";
+    urlError.innerHTML = "";
+    var savedUrl = getStorage(STORAGE_URL_KEY);
+    showTab(savedUrl ? "url" : (channels.length ? "text" : "url"));
+    overlay.style.display = "block";
+  }
+
+  function closeEditor() {
+    overlay.style.display = "none";
+  }
+
+  editBtn.onclick = openEditor;
+  cancelBtn.onclick = function () {
+    if (channels.length === 0) {
+      setStatus("No playlist loaded yet.");
+    }
+    closeEditor();
+  };
+  cancelBtn2.onclick = cancelBtn.onclick;
+
+  function applyParsedPlaylist(parsed) {
+    channels = parsed;
+    currentIndex = -1;
+    renderChannelList();
+    closeEditor();
+    playChannel(0);
+  }
+
+  saveBtn.onclick = function () {
+    var raw = playlistText.value;
+    var parsed = parsePlaylist(raw);
+    if (parsed.length === 0) {
+      setStatus("Could not find any channels in that text. Check the format and try again.");
+      return;
+    }
+    setStorage(STORAGE_KEY, raw);
+    setStorage(STORAGE_URL_KEY, "");
+    applyParsedPlaylist(parsed);
+  };
+
+  function fetchPlaylistFromUrl(url, onSuccess, onError) {
+    var xhr;
+    try {
+      xhr = new XMLHttpRequest();
+    } catch (e) {
+      onError("This device cannot load links directly. Please paste the playlist text instead.");
+      return;
+    }
+    var done = false;
+    try {
+      xhr.open("GET", url, true);
+    } catch (e) {
+      onError("Could not load that link.");
+      return;
+    }
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState === 4) {
+        if (done) { return; }
+        done = true;
+        if (xhr.status >= 200 && xhr.status < 300) {
+          onSuccess(xhr.responseText);
+        } else {
+          onError("Could not load that link (status " + xhr.status + "). Check the URL, or paste the playlist text instead.");
+        }
+      }
+    };
+    xhr.onerror = function () {
+      if (done) { return; }
+      done = true;
+      onError("Could not load that link. It may be blocking cross-site requests, or the URL is wrong. Try pasting the playlist text instead.");
+    };
+    try {
+      xhr.send();
+    } catch (e) {
+      onError("Could not load that link.");
+    }
+  }
+
+  loadUrlBtn.onclick = function () {
+    var url = trim(playlistUrl.value || "");
+    if (url === "") {
+      urlError.innerHTML = "Please enter a link first.";
+      return;
+    }
+    urlError.innerHTML = "Loading...";
+    fetchPlaylistFromUrl(url, function (text) {
+      var parsed = parsePlaylist(text);
+      if (parsed.length === 0) {
+        urlError.innerHTML = "That link did not contain any channels in a recognizable format.";
+        return;
+      }
+      setStorage(STORAGE_URL_KEY, url);
+      setStorage(STORAGE_KEY, text);
+      urlError.innerHTML = "";
+      applyParsedPlaylist(parsed);
+    }, function (msg) {
+      urlError.innerHTML = msg;
+    });
+  };
+
+  function init() {
+    var savedUrl = getStorage(STORAGE_URL_KEY);
+    var raw = getStorage(STORAGE_KEY);
+
+    function startWithChannels(list) {
+      channels = list;
+      renderChannelList();
+      var lastStr = getStorage(LAST_CHANNEL_KEY);
+      var last = lastStr !== null ? parseInt(lastStr, 10) : 0;
+      if (isNaN(last) || last < 0 || last >= channels.length) { last = 0; }
+      playChannel(last);
+    }
+
+    if (savedUrl) {
+      setStatus("Refreshing playlist from saved link...");
+      fetchPlaylistFromUrl(savedUrl, function (text) {
+        var parsed = parsePlaylist(text);
+        if (parsed.length > 0) {
+          setStorage(STORAGE_KEY, text);
+          startWithChannels(parsed);
+        } else if (raw) {
+          startWithChannels(parsePlaylist(raw));
+        } else {
+          openEditor();
+        }
+      }, function () {
+        if (raw) {
+          setStatus("Could not refresh from the link, using last saved playlist.");
+          startWithChannels(parsePlaylist(raw));
+        } else {
+          openEditor();
+        }
+      });
+      return;
+    }
+
+    if (raw) {
+      var parsed = parsePlaylist(raw);
+      if (parsed.length > 0) {
+        startWithChannels(parsed);
+        return;
+      }
+    }
+    openEditor();
+  }
+
+  window.onload = init;
+})();
+</script>
+</body>
+</html>
